@@ -11,6 +11,8 @@ import org.glassfish.grizzly.http.server.Response;
 import org.glassfish.grizzly.http.util.HttpStatus;
 import org.glassfish.grizzly.threadpool.GrizzlyExecutorService;
 import org.glassfish.grizzly.threadpool.ThreadPoolConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.netflix.config.DynamicIntProperty;
@@ -21,6 +23,8 @@ import ccio.imman.ImageServer;
 import ccio.imman.Manipulation;
 
 public class ImageHttpHandler extends HttpHandler {
+	
+	private static final Logger LOGGER = LoggerFactory.getLogger(ImageHttpHandler.class);
 	
 	private static final DynamicIntProperty POOL_CORE = DynamicPropertyFactory.getInstance().getIntProperty("http.executor.pool.core", 100);
 	private static final DynamicIntProperty POOL_MAX = DynamicPropertyFactory.getInstance().getIntProperty("http.executor.pool.max", 150);
@@ -72,10 +76,14 @@ public class ImageHttpHandler extends HttpHandler {
 		        		// we didn't find the file anywhere, returning 404
             			generateNotFoundResponse(response);
             		}
-                } catch (IOException e) {
+                } catch (Throwable e) {
                     response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
-                } finally {
-                    response.resume();  // Finishing HTTP request processing and flushing the response to the client
+                    if (response.isSuspended()) {
+                		response.resume();
+                	} else {
+                		response.finish();                   
+                	}
+                    LOGGER.error(e.getMessage(), e);
                     res = null;
                 }
             }
@@ -83,7 +91,11 @@ public class ImageHttpHandler extends HttpHandler {
         	// privates
         	private void generateNotFoundResponse(Response response) {
         		response.setStatus(HttpStatus.NOT_FOUND_404);
-        		response.finish();
+        		if (response.isSuspended()) {
+            		response.resume();
+            	} else {
+            		response.finish();                   
+            	}
         	}
         	
         	private void generateResponse(byte[] bytes, FileInfo fileInfo, Response response)
@@ -100,16 +112,20 @@ public class ImageHttpHandler extends HttpHandler {
         		
         		if(bytes != null){
         			NIOOutputStream out = response.getNIOOutputStream(); 
-        			out.notifyCanWrite(new BytesWriteHandler(bytes, out){
+        			out.notifyCanWrite(new BytesWriteHandler(bytes, response, out){
         	
         				@Override
         				public void onError(Throwable t) {
         	            	response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);	
+        	            	if (response.isSuspended()) {
+        	            		response.resume();
+        	            	} else {
+        	            		response.finish();                   
+        	            	}
         				}
         			});
-        			response.getOutputStream().flush();
+//        			response.getOutputStream().flush();
         		}
-        		response.finish();
         	}
         });
 	}
