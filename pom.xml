@@ -51,11 +51,6 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
-		<!-- <dependency> -->
-		<!-- <groupId>commons-logging</groupId> -->
-		<!-- <artifactId>commons-logging</artifactId> -->
-		<!-- <version>1.2</version> -->
-		<!-- </dependency> -->
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-api</artifactId>
@@ -173,11 +168,6 @@
 							<createDependencyReducedPom>false</createDependencyReducedPom>
 							<outputFile>target/${project.artifactId}.jar</outputFile>
 							<filters>
-								<!-- We are removing the Log4j2Plugins.dat file from ALL dependencies 
-									so that we don't overwrite the existing Log4j2Plugins.dat file. Overwriting 
-									causes logs to vanish (presumably being consumed by the Flume appender). 
-									This is a design flaw which exists between the Log4j2 plugin system and fat/shaded 
-									jars. See: https://issues.apache.org/jira/browse/LOG4J2-673 -->
 								<filter>
 									<artifact>*:*</artifact>
 									<excludes>
