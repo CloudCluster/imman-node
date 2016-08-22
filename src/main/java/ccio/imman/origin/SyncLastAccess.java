@@ -1,6 +1,7 @@
 package ccio.imman.origin;
 
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -22,15 +23,19 @@ public class SyncLastAccess implements Runnable{
 			try{
 				int totalFilesRead = 0;
 				for (Iterator<Path> iter=Files.walk(Paths.get(location)).iterator(); iter.hasNext();) {
-					Path path = iter.next();
-					if(path.toFile().isFile()){
-						BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
-						if(attrs.isRegularFile()){
-							FileTime time = attrs.lastAccessTime();
-							LocalFileLoader.LAST_ACCESS.put(path.toAbsolutePath().toString().substring(filePrefixIndx), time.toMillis());
-							totalFilesRead++;
-							Thread.sleep(2);
+					try{
+						Path path = iter.next();
+						if(path.toFile().isFile()){
+							BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
+							if(attrs.isRegularFile()){
+								FileTime time = attrs.lastAccessTime();
+								LocalFileLoader.LAST_ACCESS.put(path.toAbsolutePath().toString().substring(filePrefixIndx), time.toMillis());
+								totalFilesRead++;
+								Thread.sleep(2);
+							}
 						}
+					}catch(NoSuchFileException e){
+						//some files could be deleted while we are walking, so just ignore it
 					}
 				}
 				if(LOGGER.isDebugEnabled()){
