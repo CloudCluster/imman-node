@@ -5,8 +5,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -21,11 +19,11 @@ import com.netflix.config.DynamicStringSetProperty;
 
 import ccio.imman.FileInfo;
 
-public class LocalFileLoader extends AbstractMapLoader {
+public class LocalFileLoader {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(LocalFileLoader.class);
 	
-	public static final DynamicStringSetProperty FILES_LOCATIONS = new DynamicStringSetProperty("files.locations", new HashSet<String>(Arrays.asList("/opt/ccio/store")));
+	public static final DynamicStringSetProperty FILES_LOCATIONS = new DynamicStringSetProperty("files.locations", "/opt/ccio/store");
 	public static final ConcurrentHashMap<String, Long> LAST_ACCESS = new ConcurrentHashMap<>();
 
 	private static final ScheduledExecutorService EXEC_REMOVE_FILES = Executors.newSingleThreadScheduledExecutor();
@@ -53,9 +51,24 @@ public class LocalFileLoader extends AbstractMapLoader {
 		EXEC_SYNC_LAST_ACCESS.scheduleWithFixedDelay(new SyncLastAccess(), 0, 4, TimeUnit.HOURS);		
 	}
 	
-	@Override
-	public byte[] load(FileInfo fileInfo) {
-		return loadFile(fileInfo);
+	public static boolean isFileExist(FileInfo fileInfo){
+		for(String location : FILES_LOCATIONS.get()){
+			boolean res = Paths.get(location, fileName(fileInfo.canonicalPath())).toFile().exists();
+			if(res){
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	public static boolean isOriginalFileExist(FileInfo fileInfo){
+		for(String location : FILES_LOCATIONS.get()){
+			boolean res = Paths.get(location, fileName(fileInfo.getPath())).toFile().exists();
+			if(res){
+				return true;
+			}
+		}
+		return false;
 	}
 	
 	public static byte[] loadFile(FileInfo fileInfo){
@@ -77,12 +90,39 @@ public class LocalFileLoader extends AbstractMapLoader {
 		return null;
 	}
 	
-	public static void storeFile(String filePath, byte[] bytes){
+	public static byte[] loadOriginalFile(FileInfo fileInfo){
+		LOGGER.debug("Loading local original file: {}", fileInfo);
+		final String path = fileInfo.getPath();
+		final String fileName = fileName(path);
+		
+		for(String location : FILES_LOCATIONS.get()){
+			try {
+				byte[] res = Files.readAllBytes(Paths.get(location, fileName));
+				if(res != null){
+					LAST_ACCESS.put(fileName, System.currentTimeMillis());
+					return res;
+				}
+			} catch (IOException e) {
+				LOGGER.trace("Cannot read file {} -- {}\n{}", path, fileName, e);
+			}
+		}
+		return null;
+	}
+	
+	public static void storeFile(FileInfo fileInfo, byte[] bytes){
+		storeFile(fileInfo.canonicalPath(), bytes);
+	}
+	
+	public static void storeOriginalFile(FileInfo fileInfo, byte[] bytes){
+		storeFile(fileInfo.getPath(), bytes);
+	}
+	
+	private static void storeFile(String filePath, byte[] bytes){
 		if(bytes != null){
 			final String fileName = fileName(filePath);
-			LOGGER.debug("Writing file {} --> {}", filePath, fileName);
 			try {
 				Path path = Paths.get(findFreeSpaceLocation(), fileName);
+				LOGGER.debug("Writing file {} --> {}", filePath, path);
 				Files.createDirectories(path.getParent());
 				Files.write(path, bytes);
 				LAST_ACCESS.put(fileName, System.currentTimeMillis());
@@ -119,14 +159,16 @@ public class LocalFileLoader extends AbstractMapLoader {
 	
 	private static String findFreeSpaceLocation(){
 		String result = null;
-		long freeSpace = 0;
+		long freeSpace = -1;
 		for(String location : FILES_LOCATIONS.get()){
 			long space = new File(location).getUsableSpace();
+			LOGGER.debug("Location {}, Free Sapce {}", location, space);
 			if(freeSpace < space){
 				freeSpace = space;
 				result = location;
 			}
 		}
+		LOGGER.debug("Location with more space {}", result);
 		return result;
 	}
 	

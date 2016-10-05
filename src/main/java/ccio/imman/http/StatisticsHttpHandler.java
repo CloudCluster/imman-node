@@ -1,14 +1,9 @@
 package ccio.imman.http;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 
 import org.glassfish.grizzly.http.server.HttpHandler;
 import org.glassfish.grizzly.http.server.Request;
@@ -20,28 +15,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.core.IExecutorService;
-import com.hazelcast.core.Member;
-import com.hazelcast.core.MemberLeftException;
 
-import ccio.imman.ImageServer; 
+import ccio.imman.ImageServer;
+import ccio.imman.origin.LocalFileLoader; 
 
 public class StatisticsHttpHandler extends HttpHandler {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(StatisticsHttpHandler.class);	
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 	
-	private HazelcastInstance hzInstance;
 	private final ExecutorService executorService = GrizzlyExecutorService.createInstance(
             ThreadPoolConfig.defaultConfig()
             .copy()
             .setCorePoolSize(10)
             .setMaxPoolSize(15));
 
-	public StatisticsHttpHandler(HazelcastInstance hzInstance) {
+	public StatisticsHttpHandler() {
 		super();
-		this.hzInstance = hzInstance;
 	}
 
 	@Override
@@ -63,38 +53,12 @@ public class StatisticsHttpHandler extends HttpHandler {
 				}
 				
 				HashMap<String, Object> res = new HashMap<>();
-				res.put("state", hzInstance.getCluster().getClusterState());
-		
-				Set<Map<String, Object>> members = new HashSet<>();
-				IExecutorService executorService = hzInstance.getExecutorService(ImageServer.NAME_REMOTE_FILE_EXEC);
-				Map<Member, Future<String>> futures = executorService.submitToAllMembers(new StatisticsFunction(hzInstance));
-				LOGGER.debug("Stat retreaval submited to {} members", futures.size());
-				for (Entry<Member, Future<String>> entity : futures.entrySet()) {
-					try {
-						LOGGER.debug("Calling Remote Member: {}", entity.getKey());
-						Future<String> future = entity.getValue(); 
-						String remoteStatStr = future.get();
-						LOGGER.debug("Remote Stat: {}", remoteStatStr);
-						HashMap<String, Object> remoteStat = new HashMap<>();
-						remoteStat.put("node", getMemberInfo(entity.getKey()));
-						remoteStat.put("imagesMap", MAPPER.readValue(remoteStatStr, Map.class));
-						members.add(remoteStat);
-					} catch (MemberLeftException e) {
-						LOGGER.debug("Cannot get stat from a member, it left", e);
-						HashMap<String, Object> resMember = new HashMap<>();
-						resMember.put("node", getMemberInfo(e.getMember()));
-						resMember.put("error", e.getMessage());
-						members.add(resMember);
-					} catch (InterruptedException | ExecutionException | IOException e) {
-						LOGGER.debug("Cannot get stat from a member", e);
-						HashMap<String, Object> resMember = new HashMap<>();
-						resMember.put("error", e.getMessage());
-						members.add(resMember);
-					}
+				res.put("status", "ok");
+				for(String location : LocalFileLoader.FILES_LOCATIONS.get()){
+					res.put(location, new File(location).getUsableSpace());
 				}
-				res.put("members", members);
-				res.put("size", members.size());
-				
+				res.put("lastAccessSize", LocalFileLoader.LAST_ACCESS.size());
+		
 				try{
 					response.setContentType("application/json");
 					response.setHeader("Access-Control-Allow-Origin", "*");
@@ -109,13 +73,6 @@ public class StatisticsHttpHandler extends HttpHandler {
 				response.resume();
 			}
             
-            private Map<String, Object> getMemberInfo(Member member){
-            	HashMap<String, Object> resMember = new HashMap<>();
-            	resMember.put("address", member.getAddress().getHost()+":"+member.getAddress().getPort());
-            	resMember.put("id", member.getUuid());
-            	resMember.put("local", member.localMember());
-            	return resMember;
-            }
 		});
 	}
 }

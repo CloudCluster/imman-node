@@ -2,7 +2,6 @@ package ccio.imman.http;
 
 import org.glassfish.grizzly.WriteHandler;
 import org.glassfish.grizzly.http.io.NIOOutputStream;
-import org.glassfish.grizzly.http.server.Response;
 
 import com.netflix.config.DynamicIntProperty;
 import com.netflix.config.DynamicPropertyFactory;
@@ -13,12 +12,10 @@ public abstract class BytesWriteHandler implements WriteHandler{
 
 	private byte[] bytes;
 	private NIOOutputStream out;
-	private Response response;
 	private int off = 0;
 	
-	public BytesWriteHandler(byte[] bytes, Response resp, NIOOutputStream out) {
+	public BytesWriteHandler(byte[] bytes, NIOOutputStream out) {
 		this.bytes = bytes;
-		this.response = resp;
 		this.out = out;
 	}
 	
@@ -35,12 +32,10 @@ public abstract class BytesWriteHandler implements WriteHandler{
         	out.notifyCanWrite(this);
         } else {
         	out.close();
-        	if (response.isSuspended()) {
-        		response.resume();
-        	} else {
-        		response.finish();                   
-        	}
+        	onCompleted();
         }
 	}
+	
+	public abstract void onCompleted();
 
 }

@@ -21,13 +21,13 @@ public class RemoveOldFiles implements Runnable{
 		try{
 			int filesRemoved = 0;
 
-			for(String location : LocalFileLoader.FILES_LOCATIONS.get()) {
+			for(String location : LocalFileLoader.FILES_LOCATIONS.get()){
 				if(LOGGER.isDebugEnabled()){
 					long usableSpace = new File(location).getUsableSpace();
 					LOGGER.debug("Removing files if there is no space anymore. Usable space: {}, Min free space: {}, Still available {}", usableSpace, FILES_MIN_FREE_SPACE.get(), usableSpace - FILES_MIN_FREE_SPACE.get());
 					LOGGER.trace("LAST_ACCESS Before: {}", LocalFileLoader.LAST_ACCESS);
 				}
-
+	
 				while (FILES_MIN_FREE_SPACE.get() > new File(location).getUsableSpace() && LocalFileLoader.LAST_ACCESS.size() > 0) {
 					// we are removing LRU files
 					String toDeleteKey = null;

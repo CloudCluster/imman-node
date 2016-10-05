@@ -17,7 +17,7 @@ public class SyncLastAccess implements Runnable{
 
 	@Override
 	public void run() {
-		for(String location : LocalFileLoader.FILES_LOCATIONS.get()) {
+		for(String location : LocalFileLoader.FILES_LOCATIONS.get()){
 			final int filePrefixIndx = location.length()+1;
 			LOGGER.debug("Syncing Last Used Time on {}", location);
 			try{
@@ -31,7 +31,7 @@ public class SyncLastAccess implements Runnable{
 								FileTime time = attrs.lastAccessTime();
 								LocalFileLoader.LAST_ACCESS.put(path.toAbsolutePath().toString().substring(filePrefixIndx), time.toMillis());
 								totalFilesRead++;
-								Thread.sleep(2);
+								Thread.sleep(1);
 							}
 						}
 					}catch(NoSuchFileException e){
@@ -41,10 +41,12 @@ public class SyncLastAccess implements Runnable{
 				if(LOGGER.isDebugEnabled()){
 					LOGGER.debug("Files read: {}, Files in the map: {}", totalFilesRead, LocalFileLoader.LAST_ACCESS.size());
 				}
+			}catch(NoSuchFileException e){
+				//some files could be deleted while we are walking, so just ignore it
 			}catch(Throwable e){
 				LOGGER.error(e.getMessage(), e);
 			}
-		}		
+		}
 	}
 
 }

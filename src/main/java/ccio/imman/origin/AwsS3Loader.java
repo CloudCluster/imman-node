@@ -2,6 +2,8 @@ package ccio.imman.origin;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 
 import org.apache.http.NoHttpResponseException;
 import org.slf4j.Logger;
@@ -14,19 +16,24 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.util.IOUtils;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.util.concurrent.Striped;
 import com.netflix.config.DynamicPropertyFactory;
 import com.netflix.config.DynamicStringProperty;
 
 import ccio.imman.FileInfo;
 
-public class AwsS3Loader extends AbstractMapLoader{
+public class AwsS3Loader {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(AwsS3Loader.class);
 	
 	private static final DynamicStringProperty AWS_ACCESS_KEY = DynamicPropertyFactory.getInstance().getStringProperty("aws.s3.access", System.getProperty("aws.s3.access"));
 	private static final DynamicStringProperty AWS_SECRET = DynamicPropertyFactory.getInstance().getStringProperty("aws.s3.secret", System.getProperty("aws.s3.secret"));
 	private static final DynamicStringProperty AWS_BUCKET = DynamicPropertyFactory.getInstance().getStringProperty("aws.s3.bucket", System.getProperty("aws.s3.bucket"));
+	private static final Cache<FileInfo, byte[]> TEMP_CACHE = CacheBuilder.newBuilder().expireAfterAccess(2, TimeUnit.SECONDS).maximumSize(100).build();
 	
+	private final Striped<Lock> lockStripes = Striped.lazyWeakLock(20);
 	private AmazonS3 amazonS3;
 
 	public AwsS3Loader() {
@@ -37,31 +44,41 @@ public class AwsS3Loader extends AbstractMapLoader{
 		}
 	}
 
-	@Override
 	public byte[] load(FileInfo fileInfo) {
-		byte[] bytes = null;
-		try{
-			S3Object s3o = null;
-			String s3key = fileInfo.getPath();
-			try {
-				if (s3key.startsWith("/")) {
-					s3key = s3key.substring(1);
-				}
-	
-				LOGGER.debug("S3 Call: {}", s3key);
-				s3o = amazonS3.getObject(AWS_BUCKET.get(), s3key);
-				bytes = IOUtils.toByteArray(s3o.getObjectContent());
-				LOGGER.debug("S3 Call END");
-	
-			} catch (AmazonClientException | NoHttpResponseException | UnknownHostException e) {
-				LOGGER.debug("Failed getting file from S3", e);
-			} finally {
-				if (s3o != null) {
-					s3o.close();
+		byte[] bytes = TEMP_CACHE.getIfPresent(fileInfo);
+		if(bytes==null){
+			Lock lock = lockStripes.get(fileInfo.getPath());
+			lock.lock();
+			
+			bytes = TEMP_CACHE.getIfPresent(fileInfo);
+			if(bytes==null){
+				try{
+					S3Object s3o = null;
+					String s3key = fileInfo.getPath();
+					try {
+						if (s3key.startsWith("/")) {
+							s3key = s3key.substring(1);
+						}
+			
+						LOGGER.debug("S3 Call: {}", s3key);
+						s3o = amazonS3.getObject(AWS_BUCKET.get(), s3key);
+						bytes = IOUtils.toByteArray(s3o.getObjectContent());
+						LOGGER.debug("S3 Call END");
+						if(bytes != null){
+							TEMP_CACHE.put(fileInfo, bytes);
+						}
+					} catch (AmazonClientException | NoHttpResponseException | UnknownHostException e) {
+						LOGGER.debug("Failed getting file from S3", e);
+					} finally {
+						if (s3o != null) {
+							s3o.close();
+						}
+					}
+				} catch (IOException e) {
+					LOGGER.debug("Failed in AWS S3", e);
 				}
 			}
-		} catch (IOException e) {
-			LOGGER.debug("Failed in AWS S3", e);
+			lock.unlock();
 		}
 		
 		return bytes;

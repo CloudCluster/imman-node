@@ -31,6 +31,9 @@ public class ThumbnailatorManipulation implements Manipulation {
 			LOGGER.debug(e.getMessage(), e);
 			return null;
 		}
+		if(image == null){
+			return null;
+		}
 		int origWidth=image.getWidth();
 		int origHeight=image.getHeight();
 
