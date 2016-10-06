@@ -1,5 +1,6 @@
 package ccio.imman.origin;
 
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -50,7 +51,7 @@ public class ProxyLoader {
 			});
 			final Response response = responseFuture.get(15, TimeUnit.SECONDS);
 			return response.getResponseBodyAsBytes();
-		}catch (TimeoutException e){
+		}catch (TimeoutException | ExecutionException e){
 			LOGGER.debug(e.getMessage(), e);
 		} catch (Throwable t) {
 			LOGGER.error(t.getMessage(), t);
