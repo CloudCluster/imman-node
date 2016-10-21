@@ -27,8 +27,8 @@ public class ImageHttpHandler extends HttpHandler {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(ImageHttpHandler.class);
 	
-	private static final DynamicIntProperty POOL_CORE = DynamicPropertyFactory.getInstance().getIntProperty("http.executor.pool.core", 70);
-	private static final DynamicIntProperty POOL_MAX = DynamicPropertyFactory.getInstance().getIntProperty("http.executor.pool.max", 100);
+	private static final DynamicIntProperty POOL_CORE = DynamicPropertyFactory.getInstance().getIntProperty("http.executor.pool.core", 30);
+	private static final DynamicIntProperty POOL_MAX = DynamicPropertyFactory.getInstance().getIntProperty("http.executor.pool.max", 50);
 	private static final DynamicIntProperty EXPIRED_IN_SECONDS = DynamicPropertyFactory.getInstance().getIntProperty("http.image.expired.in.seconds", 31104000);
 	
 	final ExecutorService executorService = GrizzlyExecutorService.createInstance(

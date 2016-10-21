@@ -1,9 +1,7 @@
 package ccio.imman.origin;
 
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +21,7 @@ public class ProxyLoader {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(ProxyLoader.class);
 	
-	private final static AsyncHttpClientConfig CONFIG = new AsyncHttpClientConfig.Builder().setMaxConnections(100).build();
+	private final static AsyncHttpClientConfig CONFIG = new AsyncHttpClientConfig.Builder().setMaxConnections(50).build();
 	private final static AsyncHttpClient CLIENT = new AsyncHttpClient(new GrizzlyAsyncHttpProvider(CONFIG), CONFIG);
 	
 	public static byte[] load(String ip, FileInfo fileInfo){
@@ -45,16 +43,14 @@ public class ProxyLoader {
 				 
 				@Override
 				public void onThrowable(Throwable t) {
-					LOGGER.error(t.getMessage(), t);
+					LOGGER.debug(t.getMessage(), t);
 				}
 				 
 			});
 			final Response response = responseFuture.get(15, TimeUnit.SECONDS);
 			return response.getResponseBodyAsBytes();
-		}catch (TimeoutException | ExecutionException e){
-			LOGGER.debug(e.getMessage(), e);
 		} catch (Throwable t) {
-			LOGGER.error(t.getMessage(), t);
+			LOGGER.debug(t.getMessage(), t);
 		}
 		return null;
 	}
